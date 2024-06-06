@@ -1,6 +1,3 @@
 [submodule "TinyJSON"]
 	path = TinyJSON
 	url = https://github.com/erkle64/TinyJSON.git
-[submodule "Expressive"]
-	path = Expressive
-	url = https://github.com/erkle64/Expressive.git
