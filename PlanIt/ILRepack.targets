@@ -5,7 +5,6 @@
     <ItemGroup>
         <InputAssemblies Include="$(OutputPath)\$(AssemblyName).dll" />
         <InputAssemblies Include="$(OutputPath)\TinyJSON.dll" />
-        <InputAssemblies Include="$(OutputPath)\Expressive.dll" />
     </ItemGroup>
 
     <ILRepack
