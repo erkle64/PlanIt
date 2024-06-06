@@ -40,13 +40,13 @@ namespace PlanIt
         {
             Plugin.log.Log($"Creating resource recipe[{identifier}]: {name} {output.name}");
             id = _nextId++;
-            this.identifier = identifier;
+            this.identifier = $"RR:{identifier}";
             this.name = name;
             isResource = true;
             outputs = new ItemElementTemplate.Amount[] { new ItemElementTemplate.Amount(output, outputAmount) };
             inputs = new ItemElementTemplate.Amount[0];
 
-            _recipesByIdentifier.Add(identifier, this);
+            _recipesByIdentifier.Add(this.identifier, this);
             _recipesById.Add(id, this);
         }
 
@@ -54,13 +54,13 @@ namespace PlanIt
         {
             Plugin.log.Log($"Creating resource recipe[{identifier}]: {name} {output.name}");
             id = _nextId++;
-            this.identifier = $"RR:identifier";
+            this.identifier = $"RR:{identifier}";
             this.name = name;
             isResource = true;
             outputs = new ItemElementTemplate.Amount[] { new ItemElementTemplate.Amount(output, outputAmount) };
             inputs = new ItemElementTemplate.Amount[0];
 
-            _recipesByIdentifier.Add(identifier, this);
+            _recipesByIdentifier.Add(this.identifier, this);
             _recipesById.Add(id, this);
         }
 
@@ -85,7 +85,7 @@ namespace PlanIt
             _recipesById.Add(id, this);
         }
 
-        private ItemElementRecipe(BlastFurnaceModeTemplate recipe)
+        private ItemElementRecipe(BlastFurnaceModeTemplate recipe, ItemElementTemplate.Amount hotAir)
         {
             id = _nextId++;
             identifier = $"BFM:{recipe.identifier}";
@@ -96,9 +96,10 @@ namespace PlanIt
             var index = 0;
             foreach (var output in recipe.output_elemental) outputs[index++] = new ItemElementTemplate.Amount(output.Key, output.Value / 10000.0f);
 
-            inputs = new ItemElementTemplate.Amount[recipe.input.Length];
+            inputs = new ItemElementTemplate.Amount[recipe.input.Length + 1];
             index = 0;
             foreach (var input in recipe.input) inputs[index++] = new ItemElementTemplate.Amount(input.Key, input.Value);
+            inputs[index++] = hotAir;
 
             _recipesByIdentifier.Add(identifier, this);
             _recipesById.Add(id, this);
@@ -134,6 +135,20 @@ namespace PlanIt
             return false;
         }
 
+        private static readonly string[] _vanillaItemResources =
+        {
+            "_base_rubble_ignium",
+            "_base_rubble_technum",
+            "_base_rubble_telluxite",
+            "_base_rubble_xenoferrite",
+            "_base_ore_mineral_rock"
+        };
+        private static readonly string[] _vanillaElementResources =
+        {
+            "_base_water",
+            "_base_olumite",
+            "_base_air"
+        };
         public static void Init()
         {
             if (_recipesById != null) return;
@@ -141,14 +156,68 @@ namespace PlanIt
             _recipesByIdentifier = new Dictionary<string, ItemElementRecipe>();
             _recipesById = new Dictionary<ulong, ItemElementRecipe>();
 
-            foreach (var recipe in ItemTemplateManager.getAllCraftingRecipes())
+            var blastFurnaceHotAirPerCraft = 0.0f;
+            foreach (var building in ItemTemplateManager.getAllBuildableObjectTemplates().Values)
             {
-                new ItemElementRecipe(recipe.Value);
+                switch (building.type)
+                {
+                    case BuildableObjectTemplate.BuildableObjectType.ResourceConverter:
+                        {
+                            var outputs = new ItemElementTemplate.Amount[building.resourceConverter_output_elemental_templates.Length];
+                            var index = 0;
+                            foreach (var output in building.resourceConverter_output_elemental_templates)
+                            {
+                                outputs[index++] = new ItemElementTemplate.Amount(output.Key, output.Value / 10000.0f);
+                            }
+
+                            var inputs = new ItemElementTemplate.Amount[building.resourceConverter_input_elemental_templates.Length];
+                            index = 0;
+                            foreach (var input in building.resourceConverter_input_elemental_templates)
+                            {
+                                inputs[index++] = new ItemElementTemplate.Amount(input.Key, input.Value / 10000.0f);
+                            }
+                        }
+                        break;
+
+                    case BuildableObjectTemplate.BuildableObjectType.Pumpjack:
+                        {
+                            //building.pumpjack_amountPerSec_fpm
+                        }
+                        break;
+
+                    case BuildableObjectTemplate.BuildableObjectType.BlastFurnace:
+                        {
+                            //building.blastFurnace_hotAirTemplate
+                            var hotAirPerTick = building.blastFurnace_baseHotAirConsumptionPerTick_fpm / 10000.0f;
+                            var hotAirPerMinute = hotAirPerTick * GameRoot.LOCKSTEP_TICKS_PER_SECOND * 60.0f;
+
+                            var towerIdentifier = building.blastFurnace_towerModuleBotIdentifier;
+                            var maxTowers = 1;
+                            foreach (var limit in building.modularBuildingLimits)
+                            {
+                                if (limit.bot_identifier == towerIdentifier)
+                                {
+                                    maxTowers = limit.maxAmount;
+                                    break;
+                                }
+                            }
+
+                            var speed = (building.blastFurnace_speedModifier_fpm + (maxTowers - 1) * building.blastFurnace_towerModule_speedIncrease_fpm) / 10000.0f;
+                            blastFurnaceHotAirPerCraft = hotAirPerMinute / speed;
+                        }
+                        break;
+                }
             }
 
-            foreach (var recipe in ItemTemplateManager.getAllBlastFurnaceModeTemplates())
+            foreach (var recipe in ItemTemplateManager.getAllCraftingRecipes().Values)
             {
-                new ItemElementRecipe(recipe.Value);
+                new ItemElementRecipe(recipe);
+            }
+
+            var hotAirTemplate = ItemTemplateManager.getElementTemplate("_base_hot_air");
+            foreach (var recipe in ItemTemplateManager.getAllBlastFurnaceModeTemplates().Values)
+            {
+                new ItemElementRecipe(recipe, new ItemElementTemplate.Amount(hotAirTemplate, blastFurnaceHotAirPerCraft));
             }
 
             foreach (var item in ItemTemplateManager.getAllItemTemplates())
@@ -163,6 +232,30 @@ namespace PlanIt
                 if (_recipesById.Any(x => x.Value.HasOutput(new ItemElementTemplate(element.Value)))) continue;
 
                 new ItemElementRecipe(element.Value.identifier, element.Value.name, element.Value, 1.0f);
+            }
+
+            foreach (var itemIdentifier in _vanillaItemResources)
+            {
+                var resourceIdentifier = $"RR:{itemIdentifier}";
+                if (_recipesByIdentifier.ContainsKey(resourceIdentifier)) continue;
+
+                var hash = ItemTemplate.generateStringHash(itemIdentifier);
+                var item = ItemTemplateManager.getItemTemplate(hash);
+                if (item == null) continue;
+
+                new ItemElementRecipe(itemIdentifier, item.name, item, 1.0f);
+            }
+
+            foreach (var elementIdentifier in _vanillaElementResources)
+            {
+                var resourceIdentifier = $"RR:{elementIdentifier}";
+                if (_recipesByIdentifier.ContainsKey(resourceIdentifier)) continue;
+
+                var hash = ItemTemplate.generateStringHash(elementIdentifier);
+                var element = ItemTemplateManager.getElementTemplate(hash);
+                if (element == null) continue;
+
+                new ItemElementRecipe(elementIdentifier, element.name, element, 1.0f);
             }
         }
 

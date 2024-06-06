@@ -29,52 +29,40 @@ namespace PlanIt
                 accumulator.Merge(amount.Key.Accumulate(amount.Value, ignore, this), true);
             }
 
-            var pass = 0;
-            while (accumulator.HasItems)
+            accumulator.Dump();
+
+            foreach (var solver in _matrixSolvers)
             {
-                if (pass >= 5)
+                var match = solver.Match(accumulator.itemAmounts);
+                if (match.Count == 0) continue;
+
+                Plugin.log.Log($"Solver.Solve: match: {string.Join(", ", match.Select(x => $"{x.Key.name}={x.Value}"))}");
+
+                var (solution, waste) = solver.Solve(match, _disabledRecipes);
+                foreach (var product in match)
                 {
-                    Plugin.log.Log("Solver.Solve: limit reached");
-                    break;
+                    accumulator.itemAmounts.Remove(product.Key);
                 }
 
-                pass++;
-                Plugin.log.Log($"Solver.Solve: pass {pass}");
-                accumulator.Dump();
-
-                foreach (var solver in _matrixSolvers)
+                foreach (var solutionRecipe in solution)
                 {
-                    var match = solver.Match(accumulator.itemAmounts);
-                    if (match.Count == 0) continue;
-
-                    Plugin.log.Log($"Solver.Solve: match: {string.Join(", ", match.Select(x => $"{x.Key.name}={x.Value}"))}");
-
-                    var (solution, waste) = solver.Solve(match, _disabledRecipes);
-                    foreach (var product in match)
+                    var rate = solution[solutionRecipe.Key];
+                    var recipe = solutionRecipe.Key;
+                    if (Array.IndexOf(solver.InputRecipes, recipe) >= 0)
                     {
-                        accumulator.itemAmounts.Remove(product.Key);
+                        var product = recipe.outputs[0];
+                        var subAmount = recipe.GetOutputAmount(product.itemElement) * rate;
+                        accumulator.Merge(product.itemElement.Accumulate(subAmount, ignore, this), false);
                     }
-
-                    foreach (var solutionRecipe in solution)
+                    else
                     {
-                        var rate = solution[solutionRecipe.Key];
-                        var recipe = solutionRecipe.Key;
-                        if (Array.IndexOf(solver.InputRecipes, recipe) >= 0)
-                        {
-                            var product = recipe.outputs[0];
-                            var subAmount = recipe.GetOutputAmount(product.itemElement) * rate;
-                            accumulator.Merge(product.itemElement.Accumulate(subAmount, ignore, this), false);
-                        }
-                        else
-                        {
-                            accumulator.AddRecipe(recipe.id, rate);
-                        }
+                        accumulator.AddRecipe(recipe.id, rate);
                     }
+                }
 
-                    foreach (var wasteItem in waste)
-                    {
-                        accumulator.AddWaste(wasteItem.Key, wasteItem.Value);
-                    }
+                foreach (var wasteItem in waste)
+                {
+                    accumulator.AddWaste(wasteItem.Key, wasteItem.Value);
                 }
             }
 

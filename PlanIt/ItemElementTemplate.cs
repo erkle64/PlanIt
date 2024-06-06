@@ -176,10 +176,8 @@ namespace PlanIt
 
         public Accumulator Accumulate(float amount, HashSet<ulong> ignore, Solver solver)
         {
-            Plugin.log.Log($"Accumulate: {name} = {amount}");
             var accumulator = new Accumulator(this, amount);
             var recipes = GetRecipes();
-            Plugin.log.Log($"{recipes.Length} {solver.RecipeHasSolverGroup(recipes[0].id)}");
             if (recipes.Length > 1 || solver.RecipeHasSolverGroup(recipes[0].id))
             {
                 accumulator.AddItem(this, amount);
