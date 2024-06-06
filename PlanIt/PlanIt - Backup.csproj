@@ -10,18 +10,6 @@
   <PropertyGroup>
     <TargetFrameworkMonikerAssemblyAttributesPath>$(SolutionDir)Attributes\AssemblyAttributes.cs</TargetFrameworkMonikerAssemblyAttributesPath>
   </PropertyGroup>
-  
-  <ItemGroup>
-    <PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.33">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\Expressive\Source\Expressive\Expressive.csproj" />
-    <ProjectReference Include="..\TinyJSON\TinyJSON\TinyJSON.csproj" />
-  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="0Harmony">
@@ -66,12 +54,6 @@
     <Reference Include="UnityEngine.AudioModule">
       <HintPath>$(FoundryAssembliesPath)UnityEngine.AudioModule.dll</HintPath>
     </Reference>
-    <Reference Include="System.Core">
-      <HintPath>$(FoundryAssembliesPath)System.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Xml.Linq">
-      <HintPath>$(FoundryAssembliesPath)System.Xml.Linq.dll</HintPath>
-    </Reference>
     <Reference Include="mscorlib">
       <HintPath>$(FoundryAssembliesPath)mscorlib.dll</HintPath>
     </Reference>
@@ -83,7 +65,6 @@
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="if not exist &quot;$(TargetModDir)&quot; mkdir &quot;$(TargetModDir)&quot;" />
     <Exec Command="copy /Y &quot;$(SolutionDir)Mod\*.*&quot; &quot;$(TargetModPath)&quot;" />
-    <Exec Command="copy /Y &quot;$(TargetPath)&quot; &quot;$(TargetModPath)&quot;" />
   </Target>
 
   <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
