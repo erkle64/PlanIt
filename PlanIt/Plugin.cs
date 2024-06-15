@@ -19,7 +19,7 @@ namespace PlanIt
             MODNAME = "PlanIt",
             AUTHOR = "erkle64",
             GUID = AUTHOR + "." + MODNAME,
-            VERSION = "0.1.0";
+            VERSION = "0.1.1";
 
         public static LogSource log;
 

@@ -503,6 +503,10 @@ namespace PlanIt
             {
                 if (recipe.name.Contains("Unbarrel")) continue;
                 if (recipe.tags.Contains("recycler")) continue;
+                if (recipe.tags.Contains("creative_chest")) continue;
+                if (recipe.tags.Contains("void_chest")) continue;
+                if (recipe.tags.Contains("creative_tank")) continue;
+                if (recipe.tags.Contains("void_tank")) continue;
                 new ItemElementRecipe(recipe);
             }
 
