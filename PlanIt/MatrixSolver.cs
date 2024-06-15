@@ -14,7 +14,7 @@ namespace PlanIt
         private ItemElementRecipe[] _inputRecipes;
         private ItemElementRecipe[] _recipes;
         private Dictionary<ulong, int> _recipeIndices;
-        private Rational[,] _recipeMatrix;
+        private double[,] _recipeMatrix;
 
         public ItemElementRecipe[] InputRecipes => _inputRecipes;
         public HashSet<ItemElementTemplate> Outputs => _outputs;
@@ -56,7 +56,7 @@ namespace PlanIt
                 if (products.Contains(item)) continue;
                 items.Add(item);
                 var itemRecipes = item.GetRecipes();
-                if (itemRecipes.Length > 0) inputRecipes.Add(itemRecipes[0]);
+                if (itemRecipes.Length > 0) inputRecipes.AddRange(itemRecipes);
                 else inputRecipes.Add(null);
             }
             _items = items.ToArray();
@@ -79,8 +79,8 @@ namespace PlanIt
 
             var rows = _recipes.Length + 2;
             var columns = _items.Length + _recipes.Length + 3;
-            _recipeMatrix = new Rational[rows, columns];
-            _recipeMatrix.Fill(Rational.Zero);
+            _recipeMatrix = new double[rows, columns];
+            _recipeMatrix.Fill(0.0);
             for (var i = 0; i < recipeList.Count; i++)
             {
                 var recipe = recipeList[i];
@@ -96,7 +96,7 @@ namespace PlanIt
                     _recipeMatrix[i, _itemIndices[product.itemElement]] += product.amount;
                 }
 
-                _recipeMatrix[i, _items.Length] = Rational.MinusOne;
+                _recipeMatrix[i, _items.Length] = -1.0;
             }
 
             for (var i = 0; i < inputRecipes.Count; i++)
@@ -111,20 +111,20 @@ namespace PlanIt
                 }
             }
 
-            _recipeMatrix[_recipes.Length, _items.Length] = Rational.One;
+            _recipeMatrix[_recipes.Length, _items.Length] = 1.0;
             for (var i = 0; i < _recipes.Length; i++)
             {
-                _recipeMatrix[i, _items.Length + i + 1] = Rational.One;
+                _recipeMatrix[i, _items.Length + i + 1] = 1.0;
             }
-            _recipeMatrix[rows - 1, _items.Length + _recipes.Length + 1] = Rational.One;
+            _recipeMatrix[rows - 1, _items.Length + _recipes.Length + 1] = 1.0;
         }
 
-        public Dictionary<ItemElementTemplate, Rational> Match(Dictionary<ItemElementTemplate, Rational> products)
+        public Dictionary<ItemElementTemplate, double> Match(Dictionary<ItemElementTemplate, double> products)
         {
-            var result = new Dictionary<ItemElementTemplate, Rational>();
+            var result = new Dictionary<ItemElementTemplate, double>();
             foreach (var product in products)
             {
-                if (product.Value > Rational.Zero && _outputs.Contains(product.Key))
+                if (product.Value > 0.0 && _outputs.Contains(product.Key))
                 {
                     result[product.Key] = product.Value;
                 }
@@ -132,14 +132,14 @@ namespace PlanIt
             return result;
         }
 
-        public Rational GetPriorityRatio(Rational[,] matrix)
+        public double GetPriorityRatio(double[,] matrix)
         {
-            var min = Rational.MaxValue;
-            var max = Rational.MinValue;
+            var min = double.MaxValue;
+            var max = double.MinValue;
             foreach (var value in matrix)
             {
-                var x = value.Abs();
-                if (x == Rational.Zero) continue;
+                var x = Math.Abs(value);
+                if (x == 0.0) continue;
 
                 if (x < min) min = x;
                 if (x > max) max = x;
@@ -147,19 +147,19 @@ namespace PlanIt
             return max / min;
         }
 
-        public void SetCost(Rational[,] matrix)
+        public void SetCost(double[,] matrix)
         {
             //var ratio = GetPriorityRatio(matrix);
             for (int i = _recipes.Length - 1; i >= 0; i--)
             {
-                matrix[i, matrix.GetLength(1) - 1] = new Rational(2);
+                matrix[i, matrix.GetLength(1) - 1] = 2.0;
             }
-            matrix[_recipes.Length, matrix.GetLength(1) - 1] = Rational.One;
+            matrix[_recipes.Length, matrix.GetLength(1) - 1] = 1.0;
         }
 
-        public (Dictionary<ItemElementRecipe, Rational>, Dictionary<ItemElementTemplate, Rational>) Solve(Dictionary<ItemElementTemplate, Rational> products, IEnumerable<ulong> disabledRecipes)
+        public (Dictionary<ItemElementRecipe, double>, Dictionary<ItemElementTemplate, double>) Solve(Dictionary<ItemElementTemplate, double> products, IEnumerable<ulong> disabledRecipes)
         {
-            var matrix = new Rational[_recipeMatrix.GetLength(0), _recipeMatrix.GetLength(1)];
+            var matrix = new double[_recipeMatrix.GetLength(0), _recipeMatrix.GetLength(1)];
             Array.Copy(_recipeMatrix, matrix, _recipeMatrix.Length);
             foreach (var product in products)
             {
@@ -174,11 +174,11 @@ namespace PlanIt
             {
                 if (_recipeIndices.TryGetValue(recipeId, out var row))
                 {
-                    Plugin.log.Log($"Disabling recipe: {ItemElementRecipe.Get(recipeId)?.name ?? "null"}");
+                    //Plugin.log.Log($"Disabling recipe: {ItemElementRecipe.Get(recipeId)?.name ?? "null"}");
                     var columnCount = matrix.GetLength(1);
                     for (int i = 0; i < columnCount; i++)
                     {
-                        matrix[row, i] = Rational.Zero;
+                        matrix[row, i] = 0.0;
                     }
                 }
             }
@@ -187,22 +187,22 @@ namespace PlanIt
 
             Simplex(matrix);
 
-            var solution = new Dictionary<ItemElementRecipe, Rational>();
+            var solution = new Dictionary<ItemElementRecipe, double>();
             for (var i = 0; i < _recipes.Length; i++)
             {
                 var column = _items.Length + i + 1;
                 var rate = matrix[matrix.GetLength(0) - 1, column];
-                if (rate > Rational.Zero)
+                if (rate > 0.0)
                 {
                     solution[_recipes[i]] = rate;
                 }
             }
 
-            var waste = new Dictionary<ItemElementTemplate, Rational>();
+            var waste = new Dictionary<ItemElementTemplate, double>();
             for (var i = 0; i < _outputItems.Length; i++)
             {
                 var rate = matrix[matrix.GetLength(0) - 1, i];
-                if (rate > Rational.Zero)
+                if (rate > 0.0)
                 {
                     waste[_outputItems[i]] = rate;
                 }
@@ -211,13 +211,13 @@ namespace PlanIt
             return (solution, waste);
         }
 
-        private void Simplex(Rational[,] matrix)
+        private void Simplex(double[,] matrix)
         {
-            var limit = 30;
+            var limit = 500;
             while (limit-- > 0)
             {
-                Plugin.log.Log($"Simplex:\n{MatrixToString(matrix)}");
-                var min = Rational.MaxValue;
+                //Plugin.log.Log($"Simplex:\n{MatrixToString(matrix)}");
+                var min = double.MaxValue;
                 var minColumn = -1;
                 for (var column = 0; column < matrix.GetLength(1) - 1; column++)
                 {
@@ -228,7 +228,7 @@ namespace PlanIt
                         minColumn = column;
                     }
                 }
-                if (min >= Rational.Zero) return;
+                if (min >= 0.0) return;
 
                 if (!PivotColumn(matrix, minColumn)) return;
                 //PivotColumn(matrix, minColumn);
@@ -237,14 +237,14 @@ namespace PlanIt
             Plugin.log.LogWarning($"Reached limit!\n{MatrixToString(matrix)}");
         }
 
-        private bool PivotColumn(Rational[,] matrix, int column)
+        private bool PivotColumn(double[,] matrix, int column)
         {
-            var minRatio = Rational.MaxValue;
+            var minRatio = double.MaxValue;
             var minRow = -1;
             for (var row = 0; row < matrix.GetLength(0) - 1; row++)
             {
                 var x = matrix[row, column];
-                if (x <= Rational.Zero) continue;
+                if (x <= 0.0) continue;
 
                 var ratio = matrix[row, matrix.GetLength(1) - 1] / x;
                 if (ratio < minRatio)
@@ -263,7 +263,7 @@ namespace PlanIt
             return false;
         }
 
-        private void Pivot(Rational[,] matrix, int row, int column)
+        private void Pivot(double[,] matrix, int row, int column)
         {
             var x = matrix[row, column];
             for (int i = 0; i < matrix.GetLength(1); i++) matrix[row, i] /= x;
@@ -273,7 +273,7 @@ namespace PlanIt
                 if (r == row) continue;
 
                 var ratio = matrix[r, column];
-                if (ratio.IsZero) continue;
+                if (ratio >= -double.Epsilon && ratio <= double.Epsilon) continue;
 
                 for (var c = 0; c < matrix.GetLength(1); c++)
                 {
@@ -282,7 +282,7 @@ namespace PlanIt
             }
         }
 
-        private string MatrixToString(Rational[,] matrix)
+        private string MatrixToString(double[,] matrix)
         {
             var sb = new StringBuilder();
             sb.Append("\t");

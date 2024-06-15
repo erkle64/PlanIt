@@ -173,8 +173,11 @@ namespace PlanIt
             return true;
         }
 
-        public Accumulator Accumulate(Rational amount, HashSet<ItemElementTemplate> ignore, Solver solver)
+        public Accumulator Accumulate(double amount, HashSet<ItemElementTemplate> ignore, Solver solver, HashSet<ItemElementTemplate> seen)
         {
+            if (seen.Contains(this)) return new Accumulator(Empty, 0.0);
+            seen.Add(this);
+
             var accumulator = new Accumulator(this, amount);
             if (ignore.Contains(this)) return accumulator;
 
@@ -193,7 +196,7 @@ namespace PlanIt
 
             foreach (var input in recipe.inputs)
             {
-                accumulator.Merge(input.itemElement.Accumulate(amount * input.amount, ignore, solver), true);
+                accumulator.Merge(input.itemElement.Accumulate(amount * input.amount, ignore, solver, seen), true);
             }
 
             return accumulator;
@@ -202,21 +205,21 @@ namespace PlanIt
         public struct Amount
         {
             public readonly ItemElementTemplate itemElement;
-            public readonly Rational amount;
+            public readonly double amount;
 
-            public Amount(ItemElementTemplate itemElement, Rational amount)
+            public Amount(ItemElementTemplate itemElement, double amount)
             {
                 this.itemElement = itemElement;
                 this.amount = amount;
             }
 
-            public Amount(ItemTemplate item, Rational amount)
+            public Amount(ItemTemplate item, double amount)
             {
                 itemElement = new ItemElementTemplate(item);
                 this.amount = amount;
             }
 
-            public Amount(ElementTemplate element, Rational amount)
+            public Amount(ElementTemplate element, double amount)
             {
                 itemElement = new ItemElementTemplate(element);
                 this.amount = amount;

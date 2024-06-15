@@ -9,8 +9,8 @@ namespace PlanIt
 
         public readonly uint id;
         public readonly ItemElementRecipe[] recipes;
-        public readonly Dictionary<ItemElementTemplate, Rational> products = new Dictionary<ItemElementTemplate, Rational>();
-        public readonly Dictionary<ItemElementTemplate, Rational> ingredients = new Dictionary<ItemElementTemplate, Rational>();
+        public readonly Dictionary<ItemElementTemplate, double> products = new Dictionary<ItemElementTemplate, double>();
+        public readonly Dictionary<ItemElementTemplate, double> ingredients = new Dictionary<ItemElementTemplate, double>();
 
         public bool IsComplex => recipes.Length > 1 || products.Count > 1;
 

@@ -6,19 +6,19 @@ namespace PlanIt
     internal struct Accumulator
     {
         public readonly Required required;
-        public readonly Dictionary<ulong, Rational> recipeAmounts;
-        public readonly Dictionary<ItemElementTemplate, Rational> itemAmounts;
-        public readonly Dictionary<ItemElementTemplate, Rational> wasteAmounts;
+        public readonly Dictionary<ulong, double> recipeAmounts;
+        public readonly Dictionary<ItemElementTemplate, double> itemAmounts;
+        public readonly Dictionary<ItemElementTemplate, double> wasteAmounts;
         public ulong[] recipeOrder;
 
         public bool HasItems => itemAmounts.Count > 0;
 
-        public Accumulator(ItemElementTemplate itemElement, Rational amount)
+        public Accumulator(ItemElementTemplate itemElement, double amount)
         {
             required = new Required(itemElement, amount);
-            recipeAmounts = new Dictionary<ulong, Rational>();
-            itemAmounts = new Dictionary<ItemElementTemplate, Rational>();
-            wasteAmounts = new Dictionary<ItemElementTemplate, Rational>();
+            recipeAmounts = new Dictionary<ulong, double>();
+            itemAmounts = new Dictionary<ItemElementTemplate, double>();
+            wasteAmounts = new Dictionary<ItemElementTemplate, double>();
             recipeOrder = new ulong[0];
         }
 
@@ -39,32 +39,32 @@ namespace PlanIt
             foreach (var item in other.wasteAmounts) AddWaste(item.Key, item.Value);
         }
 
-        public void AddRecipe(ulong recipeId, Rational amount)
+        public void AddRecipe(ulong recipeId, double amount)
         {
             if (recipeAmounts.ContainsKey(recipeId)) recipeAmounts[recipeId] += amount;
             else recipeAmounts[recipeId] = amount;
         }
 
-        public void AddItem(ItemElementTemplate itemElement, Rational amount)
+        public void AddItem(ItemElementTemplate itemElement, double amount)
         {
             if (itemAmounts.ContainsKey(itemElement)) itemAmounts[itemElement] += amount;
             else itemAmounts[itemElement] = amount;
         }
 
-        public void AddWaste(ItemElementTemplate itemElement, Rational amount)
+        public void AddWaste(ItemElementTemplate itemElement, double amount)
         {
             if (wasteAmounts.ContainsKey(itemElement)) wasteAmounts[itemElement] += amount;
             else wasteAmounts[itemElement] = amount;
         }
 
-        public Rational GetRecipeAmount(ulong recipeId)
+        public double GetRecipeAmount(ulong recipeId)
         {
-            return recipeAmounts.ContainsKey(recipeId) ? recipeAmounts[recipeId] : Rational.Zero;
+            return recipeAmounts.ContainsKey(recipeId) ? recipeAmounts[recipeId] : 0.0;
         }
 
-        public Rational GetWasteAmount(ItemElementTemplate itemElement)
+        public double GetWasteAmount(ItemElementTemplate itemElement)
         {
-            return wasteAmounts.ContainsKey(itemElement) ? wasteAmounts[itemElement] : Rational.Zero;
+            return wasteAmounts.ContainsKey(itemElement) ? wasteAmounts[itemElement] : 0.0;
         }
 
         public void Dump()
@@ -77,17 +77,17 @@ namespace PlanIt
         internal class Required
         {
             public ItemElementTemplate itemElement;
-            public Rational amount;
+            public double amount;
             public List<Required> dependencies;
 
             public Required()
             {
                 itemElement = ItemElementTemplate.Empty;
-                amount = Rational.Zero;
+                amount = 0.0;
                 dependencies = new List<Required>();
             }
 
-            public Required(ItemElementTemplate itemElement, Rational amount)
+            public Required(ItemElementTemplate itemElement, double amount)
             {
                 this.itemElement = itemElement;
                 this.amount = amount;

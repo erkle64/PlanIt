@@ -7,10 +7,10 @@ namespace PlanIt
         public readonly string identifier;
         public readonly string name;
         public readonly Sprite icon;
-        public Rational speed;
-        public readonly Rational powerUsage;
+        public double speed;
+        public readonly double powerUsage;
 
-        public ItemElementProducer(string identifier, string name, Sprite icon, Rational speed, Rational powerUsage)
+        public ItemElementProducer(string identifier, string name, Sprite icon, double speed, double powerUsage)
         {
             this.identifier = identifier;
             this.name = name;

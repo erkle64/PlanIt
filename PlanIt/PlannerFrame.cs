@@ -14,6 +14,7 @@ namespace PlanIt
     internal class PlannerFrame : IEscapeCloseable
     {
         private GameObject _frame = null;
+        private TextMeshProUGUI _heading = null;
         private GameObject _tabsPanel = null;
         private GameObject _planList = null;
         private GameObject _planContainer = null;
@@ -22,12 +23,15 @@ namespace PlanIt
         private GameObject _inputList = null;
         private GameObject _extraOutputList = null;
         private GameObject _extraInputList = null;
+        private TMP_InputField _renamePlanInput;
+        private GameObject _editPlanRow;
         private TMP_InputField _newPlanInput;
         private List<UIBuilder.GenericUpdateDelegate> _guiUpdaters = new List<UIBuilder.GenericUpdateDelegate>();
 
         private GameObject[] _conveyorOptionButtons = new GameObject[3];
         private GameObject[] _metallurgyOptionButtons = new GameObject[3];
         private GameObject[] _salesOptionButtons = new GameObject[2];
+        private GameObject[] _cementOptionButtons = new GameObject[2];
         private Toggle _allowUnresearchedToggle;
 
         private string _currentPlanPath = string.Empty;
@@ -39,6 +43,8 @@ namespace PlanIt
         private Sprite _arrowLeftSprite;
         private Sprite _arrowRightSprite;
         private Sprite _plusSprite;
+        private Sprite _renameSprite;
+        private Sprite _deleteSprite;
 
         private ItemElementTemplate[] _allItemElements = null;
 
@@ -60,6 +66,8 @@ namespace PlanIt
             _arrowLeftSprite = assets.LoadAsset<Sprite>("planit_arrow_left");
             _arrowRightSprite = assets.LoadAsset<Sprite>("planit_arrow_right");
             _plusSprite = assets.LoadAsset<Sprite>("planit_plus");
+            _renameSprite = assets.LoadAsset<Sprite>("planit_rename");
+            _deleteSprite = assets.LoadAsset<Sprite>("planit_delete");
         }
 
         public void Show()
@@ -79,6 +87,7 @@ namespace PlanIt
                             .Element("Heading")
                                 .SetRectTransform(0.0f, 0.0f, -60.0f, 0.0f, 0.0f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f)
                                 .Component_Text("PlanIt - Planner", "OpenSansSemibold SDF", 34.0f, Color.white)
+                                .Keep(out _heading)
                             .Done
                             .Element_Button("Button Close", "corner_cut_fully_inset", Color.white, new Vector4(13.0f, 1.0f, 4.0f, 13.0f))
                                 .SetOnClick(Hide)
@@ -112,6 +121,45 @@ namespace PlanIt
                                         .MinWidth(360)
                                         .PreferredWidth(360)
                                         .FlexibleHeight(1)
+                                    .Done
+                                .Done
+                                .Element("Edit Plan Row")
+                                    .Keep(out _editPlanRow)
+                                    .Layout()
+                                        .MinHeight(40)
+                                        .PreferredHeight(40)
+                                        .FlexibleHeight(0)
+                                    .Done
+                                    .SetHorizontalLayout(new RectOffset(0, 0, 0, 0), 8.0f, TextAnchor.UpperLeft, false, true, true, false, true, false, false)
+                                    .Element_InputField("Rename Plan Input", "")
+                                        .Layout()
+                                            .FlexibleWidth(1)
+                                        .Done
+                                        .Keep(out _renamePlanInput)
+                                        .WithComponent<TMP_InputField>(input =>
+                                        {
+                                            input.onValueChanged.AddListener((_) => ProcessUpdaters());
+                                        })
+                                    .Done
+                                    .Element_IconButton("Rename Plan Button", _renameSprite, 30, 30)
+                                        .Layout()
+                                            .MinWidth(40)
+                                            .PreferredWidth(40)
+                                            .FlexibleWidth(0)
+                                        .Done
+                                        .Updater<Button>(_guiUpdaters, () => !string.IsNullOrWhiteSpace(_renamePlanInput?.text))
+                                        .SetOnClick(OnClickRenamePlan)
+                                        .Component_Tooltip("Rename Plan")
+                                    .Done
+                                    .Element_IconButton("Rename Plan Button", _deleteSprite, 30, 30)
+                                        .Layout()
+                                            .MinWidth(40)
+                                            .PreferredWidth(40)
+                                            .FlexibleWidth(0)
+                                        .Done
+                                        .Updater<Button>(_guiUpdaters, () => !string.IsNullOrWhiteSpace(_renamePlanInput?.text))
+                                        .SetOnClick(OnClickDeletePlan)
+                                        .Component_Tooltip("Delete Plan")
                                     .Done
                                 .Done
                                 .Element("New Plan Row")
@@ -162,6 +210,8 @@ namespace PlanIt
                         .Done
                     .Done
                 .End();
+
+                _editPlanRow.SetActive(false);
 
                 ProcessUpdaters();
                 FillPlanList();
@@ -219,6 +269,37 @@ namespace PlanIt
             ProcessUpdaters();
         }
 
+        private void OnClickRenamePlan()
+        {
+            if (string.IsNullOrEmpty(_currentPlanPath)) return;
+
+            var name = PathHelpers.MakeValidFileName(_renamePlanInput?.text ?? "");
+            if (string.IsNullOrEmpty(name)) return;
+
+            var filePath = Path.Combine(_planFolder, $"{name}.json");
+            if (File.Exists(filePath))
+            {
+                ConfirmationFrame.Show($"Overwrite '{name}'?", "Confirm", () =>
+                {
+                    RenamePlan(_currentPlanPath, filePath);
+                });
+            }
+            else
+            {
+                RenamePlan(_currentPlanPath, filePath);
+            }
+        }
+
+        private void OnClickDeletePlan()
+        {
+            if (string.IsNullOrEmpty(_currentPlanPath)) return;
+
+            ConfirmationFrame.Show($"Delete '{Path.GetFileNameWithoutExtension(_currentPlanPath)}'?", "Confirm", () =>
+            {
+                DeletePlan(_currentPlanPath);
+            });
+        }
+
         private void OnClickNewPlan()
         {
             var name = PathHelpers.MakeValidFileName(_newPlanInput?.text ?? "");
@@ -238,6 +319,32 @@ namespace PlanIt
             }
         }
 
+        private void RenamePlan(string currentPlanPath, string filePath)
+        {
+            try
+            {
+                if (File.Exists(currentPlanPath)) File.Move(currentPlanPath, filePath);
+            }
+            catch { }
+
+            FillPlanList();
+            LoadPlan(filePath);
+        }
+
+        private void DeletePlan(string currentPlanPath)
+        {
+            try
+            {
+                if (File.Exists(currentPlanPath)) File.Delete(currentPlanPath);
+            }
+            catch { }
+
+            FillPlanList();
+            _planContainer.transform.DestroyAllChildren();
+            _heading.text = "PlanIt - Planner";
+            _editPlanRow.SetActive(false);
+        }
+
         private void CreateNewPlan(string filePath)
         {
             var newPlan = PlanData.Create();
@@ -249,6 +356,13 @@ namespace PlanIt
         private void LoadPlan(string filePath)
         {
             if (_planContainer == null || !File.Exists(filePath)) return;
+
+            var name = Path.GetFileNameWithoutExtension(filePath);
+
+            _editPlanRow.SetActive(true);
+            _renamePlanInput.text = name;
+
+            _heading.text = $"PlanIt - {name}";
 
             ItemElementRecipe.Init(_currentPlan.blastFurnaceTowers, _currentPlan.stoveTowers, _currentPlan.airVentVents);
 
@@ -287,8 +401,8 @@ namespace PlanIt
                     })
                     .Element("Spacer")
                         .Layout()
-                            .MinWidth(16)
-                            .PreferredWidth(16)
+                            .MinWidth(12)
+                            .PreferredWidth(12)
                             .FlexibleWidth(0)
                         .Done
                     .Done
@@ -309,8 +423,8 @@ namespace PlanIt
                     .Done
                     .Element("Spacer")
                         .Layout()
-                            .MinWidth(16)
-                            .PreferredWidth(16)
+                            .MinWidth(12)
+                            .PreferredWidth(12)
                             .FlexibleWidth(0)
                         .Done
                     .Done
@@ -326,25 +440,42 @@ namespace PlanIt
                     .Done
                     .Element("Spacer")
                         .Layout()
-                            .MinWidth(16)
-                            .PreferredWidth(16)
+                            .MinWidth(12)
+                            .PreferredWidth(12)
                             .FlexibleWidth(0)
                         .Done
                     .Done
-                    .Element_Toggle("Allow Unresearched Toggle", false, 30.0f, isOn =>
-                    {
-                        _currentPlan.allowUnresearched = isOn; UpdateOptionButtons();
-                    })
-                        .Keep(out _allowUnresearchedToggle)
-                        .Component_Tooltip("Allow using unresearched recipes.")
+                    .Element_IconButton("Mineral Rock Button", "mineral_rock")
+                        .Keep(out _cementOptionButtons[0])
+                        .SetOnClick(() => { _currentPlan.cementTier = 0; UpdateOptionButtons(); })
+                        .Component_Tooltip("Use Mineral Rock for Cement")
                     .Done
-                    .Element_Label("Allow Unresearched Label", "Allow Unresearched", 180)
-                        .AutoSize(ContentSizeFitter.FitMode.PreferredSize, ContentSizeFitter.FitMode.PreferredSize)
+                    .Element_IconButton("Slag Button", "slag_reprocessing")
+                        .Keep(out _cementOptionButtons[1])
+                        .SetOnClick(() => { _currentPlan.cementTier = 1; UpdateOptionButtons(); })
+                        .Component_Tooltip("Use Slag for Cement")
                     .Done
+                    //.Element("Spacer")
+                    //    .Layout()
+                    //        .MinWidth(12)
+                    //        .PreferredWidth(12)
+                    //        .FlexibleWidth(0)
+                    //    .Done
+                    //.Done
+                    //.Element_Toggle("Allow Unresearched Toggle", false, 30.0f, isOn =>
+                    //{
+                    //    _currentPlan.allowUnresearched = isOn; UpdateOptionButtons();
+                    //})
+                    //    .Keep(out _allowUnresearchedToggle)
+                    //    .Component_Tooltip("Allow using unresearched recipes.")
+                    //.Done
+                    //.Element_Label("Allow Unresearched Label", "Allow Unresearched", 180)
+                    //    .AutoSize(ContentSizeFitter.FitMode.PreferredSize, ContentSizeFitter.FitMode.PreferredSize)
+                    //.Done
                     .Element("Spacer")
                         .Layout()
-                            .MinWidth(16)
-                            .PreferredWidth(16)
+                            .MinWidth(12)
+                            .PreferredWidth(12)
                             .FlexibleWidth(0)
                         .Done
                     .Done
@@ -389,8 +520,8 @@ namespace PlanIt
                     .Done
                     .Element("Spacer")
                         .Layout()
-                            .MinWidth(16)
-                            .PreferredWidth(16)
+                            .MinWidth(12)
+                            .PreferredWidth(12)
                             .FlexibleWidth(0)
                         .Done
                     .Done
@@ -435,8 +566,8 @@ namespace PlanIt
                     .Done
                     .Element("Spacer")
                         .Layout()
-                            .MinWidth(16)
-                            .PreferredWidth(16)
+                            .MinWidth(12)
+                            .PreferredWidth(12)
                             .FlexibleWidth(0)
                         .Done
                     .Done
@@ -737,8 +868,9 @@ namespace PlanIt
             UpdateOptionButtons(_currentPlan.conveyorTier, _conveyorOptionButtons);
             UpdateOptionButtons(_currentPlan.metallurgyTier, _metallurgyOptionButtons);
             UpdateOptionButtons(_currentPlan.salesTier, _salesOptionButtons);
+            UpdateOptionButtons(_currentPlan.cementTier, _cementOptionButtons);
 
-            _allowUnresearchedToggle.SetIsOnWithoutNotify(_currentPlan.allowUnresearched);
+            //_allowUnresearchedToggle.SetIsOnWithoutNotify(_currentPlan.allowUnresearched);
 
             _blastFurnaceTowerCounterLabel.text = _currentPlan.blastFurnaceTowers.ToString();
             _stoveTowerCounterLabel.text = _currentPlan.stoveTowers.ToString();
@@ -935,6 +1067,7 @@ namespace PlanIt
                 }
                 disabledRecipes.Remove(itemElementRecipe.id);
             }
+
             if (_currentPlan.salesTier == 0)
             {
                 disabledRecipes.Add(ItemElementRecipe.Get("RC:sales_base_robot_01").id);
@@ -942,6 +1075,15 @@ namespace PlanIt
             else
             {
                 disabledRecipes.Add(ItemElementRecipe.Get("RC:sales_base_maintenance_drone_i").id);
+            }
+
+            if (_currentPlan.cementTier == 0)
+            {
+                disabledRecipes.Add(ItemElementRecipe.Get("CR:_base_cement_reprocessed").id);
+            }
+            else
+            {
+                disabledRecipes.Add(ItemElementRecipe.Get("CR:_base_cement").id);
             }
 
             var sw = new Stopwatch();
@@ -952,7 +1094,7 @@ namespace PlanIt
             sw.Stop();
             Plugin.log.Log($"FindSubGraphs: {sw.ElapsedMilliseconds}ms");
 
-            var targets = new Dictionary<ItemElementTemplate, Rational>();
+            var targets = new Dictionary<ItemElementTemplate, double>();
             var ignore = new HashSet<ItemElementTemplate>();
             foreach (var item in _currentPlan.inputs)
             {
@@ -968,7 +1110,7 @@ namespace PlanIt
                 var outputElement = ItemElementTemplate.Get(_currentPlan.outputs[outputIndex]);
                 if (outputElement.isValid)
                 {
-                    targets[outputElement] = new Rational((long)(_currentPlan.outputAmounts[outputIndex] * 10000.0), 10000);
+                    targets[outputElement] = _currentPlan.outputAmounts[outputIndex];
                 }
             }
 
@@ -978,14 +1120,14 @@ namespace PlanIt
             sw.Stop();
             Plugin.log.Log($"Solve: {sw.ElapsedMilliseconds}ms");
 
-            result.Dump();
+            //result.Dump();
 
             sw.Restart();
             sw.Start();
             var (conveyor, conveyorSpeed) = ItemElementRecipe.ConveyorSpeeds[Mathf.Clamp(_currentPlan.conveyorTier, 0, ItemElementRecipe.ConveyorSpeeds.Count - 1)];
             _planContent.transform.DestroyAllChildren();
             var builder = UIBuilder.BeginWith(_planContent);
-            var inputAmounts = new Dictionary<ItemElementTemplate, Rational>();
+            var inputAmounts = new Dictionary<ItemElementTemplate, double>();
             foreach (var recipeAmount in result.recipeAmounts)
             {
                 var recipe = ItemElementRecipe.Get(recipeAmount.Key);
@@ -994,7 +1136,7 @@ namespace PlanIt
                     var itemElement = input.itemElement;
                     if (itemElement.isValid)
                     {
-                        var amount = Rational.Zero;
+                        var amount = 0.0;
                         if (inputAmounts.TryGetValue(itemElement, out var _amount))
                         {
                             amount = _amount;
@@ -1009,7 +1151,7 @@ namespace PlanIt
                         var itemElement = output.itemElement;
                         if (itemElement.isValid)
                         {
-                            var amount = Rational.Zero;
+                            var amount = 0.0;
                             if (inputAmounts.TryGetValue(itemElement, out var _amount))
                             {
                                 amount = _amount;
@@ -1041,7 +1183,7 @@ namespace PlanIt
                                 .Component_Tooltip(itemElement.name)
                                 .SetOnClick(() => { ToggleInput(itemElement.fullIdentifier); })
                             .Done
-                            .Element_Label($"Amount - {itemElement.name}", $"{Math.Max(0.01, (double)(output.amount * recipeAmount.Value)):0.##}", 58)
+                            .Element_Label($"Amount - {itemElement.name}", $"{Math.Max(0.01, output.amount * recipeAmount.Value):0.##}", 58)
                                 .AutoSize(ContentSizeFitter.FitMode.PreferredSize, ContentSizeFitter.FitMode.PreferredSize)
                                 .WithComponent<TextMeshProUGUI>(text => {
                                     text.fontSize = 12.0f;
@@ -1115,7 +1257,7 @@ namespace PlanIt
 
                 foreach (var producer in recipe.producers)
                 {
-                    var producerAmount = recipeAmount.Value * recipe.time / (producer.speed * new Rational(60));
+                    var producerAmount = recipeAmount.Value * recipe.time / (producer.speed * 60.0);
                     builder = builder
                         .Element("Producer Wrapper")
                             .SetVerticalLayout(new RectOffset(0, 0, 0, 0), 2.0f, TextAnchor.UpperLeft, false, true, true, false, false, false, false)
@@ -1139,7 +1281,7 @@ namespace PlanIt
                                 })
                             .Done
                             .Do(powerBuilder => {
-                                if (producer.powerUsage > Rational.Zero && producerAmount > Rational.Zero)
+                                if (producer.powerUsage > 0.0 && producerAmount > 0.0)
                                 {
                                     var power = (double)(producer.powerUsage * producerAmount);
                                     string powerText;
@@ -1284,7 +1426,7 @@ namespace PlanIt
                 {
                     inputLabel.text = $"{Math.Max(0.01, (double)input.Value):0.##}";
                 }
-                else if (input.Value > Rational.Zero)
+                else if (input.Value > 0.001)
                 {
                     if (_extraInputList.transform.childCount == 0)
                     {
@@ -1327,7 +1469,7 @@ namespace PlanIt
             builder = UIBuilder.BeginWith(_extraOutputList);
             foreach (var output in result.wasteAmounts)
             {
-                if (output.Value > Rational.Zero)
+                if (output.Value > 0.001)
                 {
                     if (_extraOutputList.transform.childCount == 0)
                     {

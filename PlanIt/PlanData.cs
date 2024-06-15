@@ -11,6 +11,7 @@ public struct PlanData
     public int conveyorTier;
     public int metallurgyTier;
     public int salesTier;
+    public int cementTier;
     public bool allowUnresearched;
     public int blastFurnaceTowers;
     public int stoveTowers;
@@ -26,6 +27,7 @@ public struct PlanData
             conveyorTier = 0,
             metallurgyTier = 0,
             salesTier = 0,
+            cementTier = 0,
             allowUnresearched = false,
             blastFurnaceTowers = 1,
             stoveTowers = 1,
