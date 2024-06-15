@@ -14,29 +14,27 @@ namespace PlanIt
 
         public bool RecipeHasSolverGroup(ulong id) => _recipeSolveGroups.ContainsKey(id);
 
-        public Solver()
+        public Solver(IEnumerable<ulong> disabledRecipes)
         {
-            ItemElementRecipe.Init();
+            _disabledRecipes.UnionWith(disabledRecipes);
         }
 
-        public Accumulator Solve(Dictionary<ItemElementTemplate, float> amounts, HashSet<ulong> ignore)
+        public Accumulator Solve(Dictionary<ItemElementTemplate, Rational> amounts, HashSet<ItemElementTemplate> ignore)
         {
             var unknowns = new List<ItemElementTemplate>();
-            var accumulator = new Accumulator(ItemElementTemplate.Empty, 0.0f);
+            var accumulator = new Accumulator(ItemElementTemplate.Empty, Rational.Zero);
 
             foreach (var amount in amounts)
             {
                 accumulator.Merge(amount.Key.Accumulate(amount.Value, ignore, this), true);
             }
 
-            accumulator.Dump();
+            //accumulator.Dump();
 
             foreach (var solver in _matrixSolvers)
             {
                 var match = solver.Match(accumulator.itemAmounts);
                 if (match.Count == 0) continue;
-
-                Plugin.log.Log($"Solver.Solve: match: {string.Join(", ", match.Select(x => $"{x.Key.name}={x.Value}"))}");
 
                 var (solution, waste) = solver.Solve(match, _disabledRecipes);
                 foreach (var product in match)
@@ -71,7 +69,6 @@ namespace PlanIt
 
         public void FindSubGraphs()
         {
-            Plugin.log.Log("Solver.FindSubGraphs");
             var (groups, simple) = SubGraphMap.FindSubGraphs(ItemElementTemplate.GatherAll(), ItemElementRecipe.AllRecipes);
 
             _recipeDisplayGroups.Clear();
@@ -90,6 +87,7 @@ namespace PlanIt
             for (var i = 0; i < groups.Length; i++)
             {
                 var group = groups[i];
+                Plugin.log.Log($"Group {i}: {string.Join(", ", group.Select(x => x.identifier))}");
                 _matrixSolvers.Add(new MatrixSolver(group));
                 foreach (var recipe in group)
                 {
@@ -98,6 +96,10 @@ namespace PlanIt
             }
 
             _matrixSolvers = TopologicalSort(_matrixSolvers);
+            foreach (var matrixSolver in _matrixSolvers)
+            {
+                Plugin.log.Log($"outputs: {string.Join(", ", matrixSolver.Outputs.Select(x => x.identifier))}");
+            }
         }
 
         private List<MatrixSolver> TopologicalSort(List<MatrixSolver> matrixSolvers)
@@ -114,6 +116,7 @@ namespace PlanIt
                     }
                 }
 
+                Plugin.log.Log($"MatrixSolver.items: {string.Join(", ", items.Select(x => x.identifier))}");
                 MatrixSolver dependency = null;
                 foreach (var item in items)
                 {
@@ -127,10 +130,11 @@ namespace PlanIt
 
                 if (dependency != null)
                 {
+                    Plugin.log.Log($"MatrixSolver.dependency: {string.Join(", ", dependency.Outputs.Select(x => x.identifier))}");
                     var index = result.IndexOf(dependency);
                     if (index >= 0)
                     {
-                        result.Insert(0, matrixSolver);
+                        result.Insert(index, matrixSolver);
                     }
                     else
                     {

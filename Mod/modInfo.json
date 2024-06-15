@@ -1,7 +1,9 @@
 {
   "identifier": "erkle64.PlanIt",
   "displayName": "PlanIt",
-  "assetBundles": [ ],
+  "assetBundles": [
+    "planit.bundle"
+  ],
   "assemblies": [
     "PlanIt.dll"
   ]

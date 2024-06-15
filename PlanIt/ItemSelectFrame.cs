@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using Unfoundry;
 using UnityEngine;
 using UnityEngine.UI;
@@ -85,7 +86,7 @@ namespace PlanIt
 
         private void BuildContent(UIBuilder builder)
         {
-            var done = new HashSet<ulong>();
+            var done = new HashSet<ItemElementTemplate>();
 
             var categories = ItemTemplateManager.getCraftingRecipeCategoryDictionary();
             foreach (var category in categories.Values)
@@ -108,9 +109,9 @@ namespace PlanIt
                             break;
                         }
 
-                        if (itemElement.isValid && !done.Contains(itemElement.id))
+                        if (itemElement.isValid && !done.Contains(itemElement))
                         {
-                            done.Add(itemElement.id);
+                            done.Add(itemElement);
                             builder.Element_IconButton($"Recipe - {itemElement.name}", itemElement.icon, 64, 64)
                                 .SetOnClick(() =>
                                 {
@@ -119,6 +120,27 @@ namespace PlanIt
                                 })
                                 .Component_Tooltip(itemElement.name);
                         }
+                    }
+                }
+            }
+
+            foreach (var recipe in ItemElementRecipe.AllRecipes)
+            {
+                var itemElement = ItemElementTemplate.Empty;
+                if (recipe.outputs.Length > 0 && recipe.inputs.Length > 0)
+                {
+                    itemElement = recipe.outputs[0].itemElement;
+
+                    if (!done.Contains(itemElement))
+                    {
+                        done.Add(itemElement);
+                        builder.Element_IconButton($"Recipe - {itemElement.name}", itemElement.icon, 64, 64)
+                            .SetOnClick(() =>
+                            {
+                                _result = itemElement;
+                                Hide(true);
+                            })
+                            .Component_Tooltip(itemElement.name);
                     }
                 }
             }

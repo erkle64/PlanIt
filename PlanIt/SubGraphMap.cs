@@ -52,14 +52,14 @@ namespace PlanIt
         public Dictionary<uint, SubGraph> GetSubGraphsById()
         {
             var subGraphs = new Dictionary<uint, SubGraph>();
-            foreach (var subGraph in _subGraphsByRecipeId)
+            foreach (var subGraph in _subGraphsByRecipeId.Values)
             {
-                subGraphs[subGraph.Value.id] = subGraph.Value;
+                subGraphs[subGraph.id] = subGraph;
             }
             return subGraphs;
         }
 
-        public IEnumerable<ItemElementRecipe[]> ComplexSubGraphRecipes => _subGraphsByRecipeId.Values.Where(x => x.IsComplex).Select(x => x.recipes);
+        public IEnumerable<ItemElementRecipe[]> ComplexSubGraphRecipes => new HashSet<SubGraph>(_subGraphsByRecipeId.Values).Where(x => x.IsComplex).Select(x => x.recipes);
 
         public List<SubGraph> GatherNeighbours(SubGraph subGraph, bool invert)
         {
@@ -76,8 +76,8 @@ namespace PlanIt
                     {
                         Plugin.log.LogWarning($"Missing subgraph for recipe: {recipe.name}");
                     }
-                    var group = this[recipe.id];
-                    subGraphs[group.id] = group;
+                    var recipeSubGraph = this[recipe.id];
+                    subGraphs[recipeSubGraph.id] = recipeSubGraph;
                 }
                 foreach (var subGraph_ in subGraphs)
                 {
@@ -117,10 +117,11 @@ namespace PlanIt
             {
                 roots.AddRange(Visit(subGraph.Value, seen, false));
             }
+            roots.Reverse();
 
             var cycles = new List<List<SubGraph>>();
             seen.Clear();
-            foreach (var root in roots.Reverse<SubGraph>())
+            foreach (var root in roots)
             {
                 if (seen.Contains(root.id)) continue;
                 cycles.Add(Visit(root, seen, true));
@@ -200,6 +201,7 @@ namespace PlanIt
             var subGraphCycles = subGraphMap.FindCycles();
             foreach (var cycle in subGraphCycles)
             {
+                if (cycle.Count <= 1) continue;
                 subGraphMap.Merge(cycle);
             }
 
@@ -247,14 +249,11 @@ namespace PlanIt
                         if (!depSubGraph.IsComplex) continue;
 
                         var pair = (item.Key, dep);
-                        if (matches.ContainsKey(depSubGraph.id))
+                        if (!matches.TryGetValue(depSubGraph.id, out var list))
                         {
-                            matches[depSubGraph.id].Add(pair);
+                            matches[depSubGraph.id] = list = new List<(ItemElementTemplate, ItemElementTemplate)>();
                         }
-                        else
-                        {
-                            matches[depSubGraph.id] = new List<(ItemElementTemplate, ItemElementTemplate)>(new (ItemElementTemplate, ItemElementTemplate)[] { pair });
-                        }
+                        list.Add(pair);
                     }
                 }
 
@@ -320,12 +319,12 @@ namespace PlanIt
                     var current = mergings[mergings.Count - 1];
                     mergings.RemoveAt(mergings.Count - 1);
                     var newMergings = new List<Dictionary<uint, SubGraph>>();
-                    foreach (var x in mergings)
+                    foreach (var merging in mergings)
                     {
                         var disjoint = true;
-                        foreach (var id in current)
+                        foreach (var id in current.Keys)
                         {
-                            if(x.ContainsKey(id.Key))
+                            if(merging.ContainsKey(id))
                             {
                                 disjoint = false;
                                 break;
@@ -333,14 +332,14 @@ namespace PlanIt
                         }
                         if (disjoint)
                         {
-                            newMergings.Add(x);
+                            newMergings.Add(merging);
                         }
                         else
                         {
                             merge = true;
-                            foreach (var id in x)
+                            foreach (var id in merging.Keys)
                             {
-                                current[id.Key] = x[id.Key];
+                                current[id] = merging[id];
                             }
                         }
                     }

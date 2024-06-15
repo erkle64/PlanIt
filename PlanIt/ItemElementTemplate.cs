@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using UnityEngine;
 
 namespace PlanIt
@@ -73,7 +72,7 @@ namespace PlanIt
         {
             if (_uses.TryGetValue(this, out var recipes)) return recipes;
 
-            var recipeList = ItemElementRecipe.GatherRecipesFor(this);
+            var recipeList = ItemElementRecipe.GatherUsesFor(this);
             recipes = recipeList.ToArray();
             _uses.Add(this, recipes);
             return recipes;
@@ -174,9 +173,11 @@ namespace PlanIt
             return true;
         }
 
-        public Accumulator Accumulate(float amount, HashSet<ulong> ignore, Solver solver)
+        public Accumulator Accumulate(Rational amount, HashSet<ItemElementTemplate> ignore, Solver solver)
         {
             var accumulator = new Accumulator(this, amount);
+            if (ignore.Contains(this)) return accumulator;
+
             var recipes = GetRecipes();
             if (recipes.Length > 1 || solver.RecipeHasSolverGroup(recipes[0].id))
             {
@@ -185,11 +186,10 @@ namespace PlanIt
             }
 
             var recipe = recipes[0];
+
             var amountPerCraft = recipe.GetOutputAmount(this);
             amount /= amountPerCraft;
             accumulator.AddRecipe(recipe.id, amount);
-
-            if (ignore.Contains(recipe.id)) return accumulator;
 
             foreach (var input in recipe.inputs)
             {
@@ -202,21 +202,21 @@ namespace PlanIt
         public struct Amount
         {
             public readonly ItemElementTemplate itemElement;
-            public readonly float amount;
+            public readonly Rational amount;
 
-            public Amount(ItemElementTemplate itemElement, float amount)
+            public Amount(ItemElementTemplate itemElement, Rational amount)
             {
                 this.itemElement = itemElement;
                 this.amount = amount;
             }
 
-            public Amount(ItemTemplate item, float amount)
+            public Amount(ItemTemplate item, Rational amount)
             {
                 itemElement = new ItemElementTemplate(item);
                 this.amount = amount;
             }
 
-            public Amount(ElementTemplate element, float amount)
+            public Amount(ElementTemplate element, Rational amount)
             {
                 itemElement = new ItemElementTemplate(element);
                 this.amount = amount;

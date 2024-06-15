@@ -3,6 +3,7 @@ using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using TinyJSON;
 using TMPro;
 using Unfoundry;
@@ -62,7 +63,9 @@ namespace PlanIt
 
             log.Log($"Loading {MODNAME}");
 
-            _plannerFrame = new PlannerFrame(planFolder);
+            var assets = typeof(Mod).GetField("assets", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mod) as Dictionary<string, UnityEngine.Object>;
+
+            _plannerFrame = new PlannerFrame(planFolder, assets);
 
             CommonEvents.OnUpdate += Update;
         }
